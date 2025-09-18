@@ -1,0 +1,266 @@
+blueprint:
+  name: Kontextbezogene Pendel-Nachrichten (2 Personen)
+  description: >
+    Schickt kontextbezogene, zufällige Push-Nachrichten an die jeweils andere Person,
+    wenn jemand (a) die Arbeit verlässt, (b) an der Arbeit ankommt oder (c) zuhause ankommt.
+    ⚠️ Setze Personen, Zonen und Notify-Services nach dem Import in der UI.
+  domain: automation
+  input:
+    person_a:
+      name: Person A
+      description: Person-Entität von Person A
+      selector:
+        entity:
+          domain: person
+
+    person_b:
+      name: Person B
+      description: Person-Entität von Person B
+      selector:
+        entity:
+          domain: person
+
+    zone_home:
+      name: Zone – Zuhause
+      default: zone.home
+      selector:
+        entity:
+          domain: zone
+
+    zone_work_a:
+      name: Zone – Arbeit Person A
+      selector:
+        entity:
+          domain: zone
+
+    zone_work_b:
+      name: Zone – Arbeit Person B
+      selector:
+        entity:
+          domain: zone
+
+    notify_a:
+      name: Notify-Service für Person A
+      description: z. B. notify.mobile_app_pixel
+      selector:
+        text:
+
+    notify_b:
+      name: Notify-Service für Person B
+      description: z. B. notify.mobile_app_iphone
+      selector:
+        text:
+
+    msgs_leave_work:
+      name: Nachrichten – Arbeit verlassen (eine pro Zeile)
+      description: Wird benutzt, wenn jemand die Arbeitszone verlässt.
+      default: |
+        Ich fahre jetzt von der Arbeit los. 🚗
+        Feierabend – endlich Richtung Zuhause! 🌇
+        Bin auf dem Heimweg, bald bei dir. 🏁
+        Los geht’s nach Hause, freu mich schon. 🏡
+        Abfahrt! Arbeit ist durch. 🙌
+        Ich komme heim – halte das Sofa warm. 🛋️
+        Roll los – bis gleich. 👋
+        Kleiner Count­down bis wir uns sehen. ⏳
+        Auf in die Freiheit! ✌️
+        Ich bin unterwegs, Kuss aufs Herz. 💋
+        Bye bye Büro, hallo Freizeit. 🎉
+        Der Stift ist gefallen – auf nach Hause. 🖊️
+        Straße, mach Platz, ich komme. 🛣️
+        Unterwegs – Gedanke schon bei dir. 💭
+        Tschüss Alltag, hallo wir. 🤍
+        Ich bring die gute Laune mit. 😄
+        Noch ein paar Kilometer, dann Umarmung. 🤗
+        Bald gemeinsames Abendessen. 🍝
+        Fahr vorsichtig – ach ja, das sagst du sonst immer. 😉
+        Ab nach Hause – Playlist läuft! 🎶
+        Feierabendmodus: ON ✅
+        Heute war’s genug – jetzt zu dir. 💛
+        Arbeit over, Liebe on. ❤️
+        Heimweg aktiviert – bis gleich. 📍
+        Bin gleich bei meinem Lieblingsmenschen. 🥰
+        Ich flitze los wie ein Superheld. 🦸
+        Der Heimweg fühlt sich heute besonders schön an. 🌈
+        Abfahrt, mein Herz zieht mich heim. 💓
+        Ich lass den Tag hinter mir und komm zu dir. 🔚
+        Bin auf dem Weg, Kopf schon bei dir. 🌟
+
+      selector:
+        text:
+          multiline: true
+
+    msgs_arrive_work:
+      name: Nachrichten – Ankunft Arbeit (eine pro Zeile)
+      description: Wird benutzt, wenn jemand in der Arbeitszone ankommt.
+      default: |
+        Bin gut bei der Arbeit angekommen. ✅
+        Angekommen im Büro – los geht’s. 💼
+        Bin am Arbeitsplatz, meld mich später. 📇
+        Landung im Office geglückt. ✈️➡️🏢
+        Arbeit erreicht – dir einen schönen Tag! ☀️
+        Kaffee in der Hand, Laptop an. ☕️
+        Bin drin – jetzt wird angepackt. 💪
+        Startklar für den Tag. 🚀
+        Bin angekommen, Kuss aus der Ferne. 😘
+        Bürotür hinter mir zu – du im Kopf. 🖤
+        Bin am Schreibtisch – denke trotzdem an dich. 💭
+        Ich bin safe angekommen, alles gut. 🤍
+        Jobmodus an, Herzmodus bleibt. ❤️
+        Angekommen – erster Gedanke: du. 🌟
+        Jetzt heißt’s: anpacken! Aber du bleibst mein Highlight. ✨
+        Arbeitsplatz erreicht – wünsche dir einen tollen Tag. 🌞
+        Angekommen, Kopf halb Arbeit, halb bei dir. 🧠💘
+        Bin da – voller Energie (noch). ⚡
+        Arbeit ist da, Liebe bleibt. 💖
+        Bin safe angekommen, bis später. 📲
+        Büro da – Herz bei dir. 🫶
+        Bin angekommen, Fokus jetzt: To-Do-Liste. 📋
+        Lass uns später über den Tag reden. 🗣️
+        Arbeitstür offen, Herz weit für dich. 💓
+        Bin angekommen, Tag kann starten. 🌅
+        Arbeit ruft – aber meine Gedanken flüstern deinen Namen. 💌
+        Bin hier – aber in Gedanken neben dir. 🤗
+        Angekommen, kleiner Check-in. ✅
+        Alles gut – bin auf Arbeit. 👍
+        Arbeit startet – Vorfreude auf Feierabend! 🕔
+
+      selector:
+        text:
+          multiline: true
+
+    msgs_arrive_home:
+      name: Nachrichten – Ankunft Zuhause (eine pro Zeile)
+      description: Wird benutzt, wenn jemand zuhause ankommt.
+      default: |
+        Bin zuhause angekommen. 🏡
+        Zuhause! Endlich. 😘
+        Angekommen – Sofa-Time wartet. 🛋️
+        Bin daheim, gleich gemütlich machen. 🧦
+        Zuhause angekommen – fühle mich gleich besser. ✨
+        Bin wieder da – alles safe. ✅
+        Zuhause! Denk an dich. 💛
+        Jetzt heißt’s Füße hoch. 👣
+        Bin da – Herz geht an dich. ❤️
+        Endlich wieder daheim. 🤍
+        Tür hinter mir zu – Ruhe an. 🔑
+        Heimat erreicht, Lieblingsort. 🌟
+        Angekommen, alles okay. 👍
+        Daheim – jetzt nur noch du im Kopf. 🥰
+        Zuhause gelandet, kuschelbereit. 🧸
+        Bin da – Kuss aus dem Flur. 💋
+        Heimatbasis erreicht. 🚪
+        Jetzt beginnt der Wohlfühlteil des Tages. 🌙
+        Daheim – kleiner Glücksmoment. 🌈
+        Bin angekommen – wann sieh’n wir uns? 🕰️
+        Zuhause, sofort an dich gedacht. 💭
+        Ich bin angekommen – wo bist du? 📍
+        Daheim – Zeit für Qualitytime. 🫶
+        Alles erledigt, jetzt nur noch entspannen. 😌
+        Bin zuhause – Mission accomplished. 🎯
+        Angekommen, direkt Gedanken an dich. 💌
+        Bin da, bereit für Kuscheleinheiten. 🤗
+        Zuhause – mit dir wär’s perfekt. 💕
+        Ich bin wieder gelandet. ✈️➡️🏡
+        Zuhause angekommen, Tag geschafft. 🌞
+
+      selector:
+        text:
+          multiline: true
+
+mode: queued
+max: 10
+
+# --- TRIGGERS ---
+trigger:
+  # Person A: Arbeit verlassen / Arbeit ankommen / Zuhause ankommen
+  - platform: zone
+    entity_id: !input person_a
+    zone: !input zone_work_a
+    event: leave
+    id: a_leaves_work
+  - platform: zone
+    entity_id: !input person_a
+    zone: !input zone_work_a
+    event: enter
+    id: a_arrives_work
+  - platform: zone
+    entity_id: !input person_a
+    zone: !input zone_home
+    event: enter
+    id: a_arrives_home
+
+  # Person B: Arbeit verlassen / Arbeit ankommen / Zuhause ankommen
+  - platform: zone
+    entity_id: !input person_b
+    zone: !input zone_work_b
+    event: leave
+    id: b_leaves_work
+  - platform: zone
+    entity_id: !input person_b
+    zone: !input zone_work_b
+    event: enter
+    id: b_arrives_work
+  - platform: zone
+    entity_id: !input person_b
+    zone: !input zone_home
+    event: enter
+    id: b_arrives_home
+
+# --- VARIABLES ---
+variables:
+  v_notify_a: !input notify_a
+  v_notify_b: !input notify_b
+  v_msgs_leave_work: !input msgs_leave_work
+  v_msgs_arrive_work: !input msgs_arrive_work
+  v_msgs_arrive_home: !input msgs_arrive_home
+
+# --- ACTIONS ---
+action:
+  - variables:
+      pick_from: >-
+        {% set which = iif(
+          trigger.id in ['a_leaves_work','b_leaves_work'], 'leave_work',
+          iif(trigger.id in ['a_arrives_work','b_arrives_work'], 'arrive_work', 'arrive_home')
+        ) %}
+        {{ which }}
+      random_msg: >-
+        {% set src = {
+          'leave_work': v_msgs_leave_work,
+          'arrive_work': v_msgs_arrive_work,
+          'arrive_home': v_msgs_arrive_home
+        }[pick_from] %}
+        {% set lines = src.split('\n') | map('trim') | reject('equalto','') | list %}
+        {% set fallback = {
+          'leave_work': 'Ich fahre jetzt von der Arbeit los. 🚗',
+          'arrive_work': 'Bin in der Arbeit angekommen. ✅',
+          'arrive_home': 'Bin zuhause angekommen. 🏡'
+        }[pick_from] %}
+        {{ (lines | random) if lines|length > 0 else fallback }}
+
+  - choose:
+      # Absender: Person A → Empfänger: Person B
+      - conditions:
+          - condition: trigger
+            id: [a_leaves_work, a_arrives_work, a_arrives_home]
+        sequence:
+          - service: "{{ v_notify_b }}"
+            data:
+              title: >-
+                {% if trigger.id == 'a_leaves_work' %}💌 Info – Abfahrt Arbeit
+                {% elif trigger.id == 'a_arrives_work' %}💌 Info – Ankunft Arbeit
+                {% else %}💌 Info – Ankunft Zuhause{% endif %}
+              message: "{{ random_msg }}"
+
+      # Absender: Person B → Empfänger: Person A
+      - conditions:
+          - condition: trigger
+            id: [b_leaves_work, b_arrives_work, b_arrives_home]
+        sequence:
+          - service: "{{ v_notify_a }}"
+            data:
+              title: >-
+                {% if trigger.id == 'b_leaves_work' %}💌 Info – Abfahrt Arbeit
+                {% elif trigger.id == 'b_arrives_work' %}💌 Info – Ankunft Arbeit
+                {% else %}💌 Info – Ankunft Zuhause{% endif %}
+              message: "{{ random_msg }}"
