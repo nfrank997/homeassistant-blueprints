@@ -2,17 +2,15 @@ blueprint:
   name: Lüften-Erinnerung – Fenster-Gruppe (multi Empfänger, nur wenn zuhause)
   description: >
     Erinnert ans Lüften, wenn in einer Fenster-Zone seit X Stunden nicht gelüftet wurde.
-    Nutzt eine Fenster-GRUPPE (binary_sensor.*) und merkt sich den Zeitpunkt der letzten
-    ausreichenden Lüftung in einem input_datetime. Benachrichtigt NUR die Empfänger,
-    deren Präsenz „zuhause“ ist (pro Empfänger: Präsenz-Entity + notify-Service).
+    Nutzt eine Fenster-GRUPPE oder einen einzelnen Fensterkontakt (binary_sensor.*)
+    und speichert den Zeitpunkt der letzten ausreichenden Lüftung in einem input_datetime.
+    Benachrichtigt NUR die Empfänger, deren Präsenz „zuhause“ ist (pro Empfänger: Präsenz-Entity + Notify-Service).
     Prüfintervall und Stunden bis Erinnerung sind einstellbar.
   domain: automation
 
   input:
-    # --- Pflicht ---
     window_group:
-      name: Fenster-Gruppe (binary_sensor.*)
-      description: Gruppe aller Fenster der Zone (Helfer „Gruppe“ mit deinen Kontakten)
+      name: Fenster-Gruppe oder einzelner Fensterkontakt (binary_sensor.*)
       selector: { entity: { domain: binary_sensor } }
 
     last_ventilated:
@@ -40,12 +38,13 @@ blueprint:
       name: Aktive Zeit – Start
       default: "08:00:00"
       selector: { time: {} }
+
     active_end:
       name: Aktive Zeit – Ende
       default: "21:00:00"
       selector: { time: {} }
 
-    # --- bis zu 5 Empfänger: pro Empfänger Präsenz-Entity + notify-Service ---
+    # Bis zu 5 Empfänger: pro Empfänger Präsenz-Entity + notify-Service
     recipient_1_presence:
       name: Empfänger 1 – Präsenz (person/device_tracker/group/binary_sensor)
       default: ""
@@ -103,7 +102,7 @@ variables:
   _start: !input active_start
   _end:   !input active_end
 
-  # Empfänger als Liste zusammenbauen (nur Paare, die befüllt sind)
+  # Empfänger-Liste bauen (nur ausgefüllte Paare)
   _r1p: !input recipient_1_presence
   _r1s: !input recipient_1_notify
   _r2p: !input recipient_2_presence
@@ -125,7 +124,7 @@ variables:
     {{ lst }}
 
 trigger:
-  # 1) „Als gelüftet zählen“: wenn die Gruppe so lange offen war
+  # 1) „Als gelüftet zählen“: sobald Gruppe/Sensor so lange offen war
   - platform: state
     entity_id: !input window_group
     to: "on"
@@ -133,9 +132,9 @@ trigger:
       minutes: !input min_open_minutes
     id: opened_long_enough
 
-  # 2) Erinnerungstakt – dynamisch per Input
+  # 2) Erinnerungs-Takt: jede Minute → wir filtern später per Modulo
   - platform: time_pattern
-    minutes: "/{{ _interval }}"
+    minutes: "/1"
     id: periodic_check
 
 condition: []
@@ -143,7 +142,7 @@ condition: []
 action:
   - choose:
 
-      # ============== CASE 1: Zeitpunkt „gelüftet“ speichern ==============
+      # ===== CASE 1: Zeitpunkt „gelüftet“ speichern =====
       - conditions: "{{ trigger.id == 'opened_long_enough' }}"
         sequence:
           - service: input_datetime.set_datetime
@@ -152,21 +151,25 @@ action:
               datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
           - stop: "Gelüftet-Zeitpunkt gespeichert."
 
-      # ============== CASE 2: Erinnerung prüfen/senden =====================
+      # ===== CASE 2: Erinnerung prüfen/senden (nur im gewählten Intervall) =====
       - conditions: "{{ trigger.id == 'periodic_check' }}"
         sequence:
-          # 2.1 aktives Zeitfenster?
+          # 2.0: Nur ausführen, wenn diese Minute zum Intervall passt
+          - condition: template
+            value_template: "{{ (now().minute % (_interval | int)) == 0 }}"
+
+          # 2.1: aktives Zeitfenster? (Hinweis: deckt Start < Ende ab)
           - condition: template
             value_template: >
               {% set nowt = now().strftime('%H:%M:%S') %}
               {{ _start <= nowt <= _end }}
 
-          # 2.2 nicht erinnern, wenn gerade ein Fenster offen ist
+          # 2.2: Nicht erinnern, wenn gerade ein Fenster offen ist
           - condition: state
             entity_id: !input window_group
             state: "off"
 
-          # 2.3 Stunden seit letzter Lüftung berechnen
+          # 2.3: Stunden seit letzter Lüftung
           - variables:
               last_str: "{{ states(_dt) }}"
               hours_since: >
@@ -176,16 +179,16 @@ action:
                   {{ ((now() - as_datetime(last_str)).total_seconds()/3600) | float(999) | round(1) }}
                 {% endif %}
 
-          # 2.4 Mindestzeit überschritten?
+          # 2.4: Mindestzeit überschritten?
           - condition: template
             value_template: "{{ hours_since >= _after_h }}"
 
-          # 2.5 Titel/Msg vorbereiten
+          # 2.5: Titel/Message vorbereiten
           - variables:
               _title: "Bitte lüften – {{ state_attr(_grp, 'friendly_name') or 'Fensterzone' }}"
               _msg: "Seit {{ hours_since }} h nicht gelüftet. Bitte ein Fenster mindestens {{ _min_open }} Minuten öffnen."
 
-          # 2.6 Dynamisch an alle „zuhause“-Empfänger senden
+          # 2.6: Dynamisch an alle 'zuhause'-Empfänger senden
           - repeat:
               for_each: "{{ _recipients }}"
               sequence:
@@ -211,9 +214,8 @@ action:
                         title: "{{ _title }}"
                         message: "{{ _msg }}"
 
-          # 2.7 Optional: immer auch als UI-Notification (falls keiner zuhause)
+          # 2.7: Zusätzlich im UI anzeigen (kannst du bei Bedarf entfernen)
           - service: persistent_notification.create
             data:
               title: "{{ _title }}"
-              message: >
-                {{ _msg }}
+              message: "{{ _msg }}"
