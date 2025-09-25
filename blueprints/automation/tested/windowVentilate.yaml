@@ -11,28 +11,47 @@ blueprint:
   input:
     window_group:
       name: Fenster-Gruppe oder einzelner Fensterkontakt (binary_sensor.*)
-      selector: { entity: { domain: binary_sensor } }
+      selector:
+        entity:
+          domain: binary_sensor
 
     last_ventilated:
       name: input_datetime – Zeitpunkt letzte ausreichende Lüftung
-      selector: { entity: { domain: input_datetime } }
+      selector:
+        entity:
+          domain: input_datetime
 
     min_open_minutes:
       name: Mindestdauer „Fenster offen“ (Min.), um als gelüftet zu zählen
       default: 5
-      selector: { number: { min: 1, max: 60, step: 1, unit_of_measurement: "min" } }
+      selector:
+        number:
+          min: 1
+          max: 60
+          step: 1
+          unit_of_measurement: "min"
 
     remind_after_hours:
       name: Erinnern nach so vielen Stunden ohne Lüften
       description: Ab dieser Zeitspanne ohne Lüften startet die Erinnerungsschleife.
       default: 6
-      selector: { number: { min: 1, max: 48, step: 1, unit_of_measurement: "h" } }
+      selector:
+        number:
+          min: 1
+          max: 72
+          step: 1
+          unit_of_measurement: "h"
 
     check_every_minutes:
       name: Prüf-/Erinnerungsintervall (Minuten)
       description: Wie oft soll geprüft werden (und ggf. erneut erinnert)?
       default: 30
-      selector: { number: { min: 5, max: 120, step: 5, unit_of_measurement: "min" } }
+      selector:
+        number:
+          min: 5
+          max: 120
+          step: 5
+          unit_of_measurement: "min"
 
     active_start:
       name: Aktive Zeit – Start
@@ -102,7 +121,7 @@ variables:
   _start: !input active_start
   _end:   !input active_end
 
-  # Empfänger-Liste bauen (nur ausgefüllte Paare)
+  # Empfänger-Liste bauen (nur vollständig ausgefüllte Paare)
   _r1p: !input recipient_1_presence
   _r1s: !input recipient_1_notify
   _r2p: !input recipient_2_presence
@@ -124,15 +143,22 @@ variables:
     {{ lst }}
 
 trigger:
-  # 1) „Als gelüftet zählen“: sobald Gruppe/Sensor so lange offen war
+  # zählt als "genug gelüftet", wenn der Sensor/Gruppe X Minuten offen ist
   - platform: state
     entity_id: !input window_group
     to: "on"
     for:
       minutes: !input min_open_minutes
-    id: opened_long_enough
+    id: opened_long_enough_on
 
-  # 2) Erinnerungs-Takt: jede Minute → wir filtern später per Modulo
+  - platform: state
+    entity_id: !input window_group
+    to: "open"
+    for:
+      minutes: !input min_open_minutes
+    id: opened_long_enough_open
+
+  # Minutentakt – garantiert jede Minute (Intervall später per Modulo)
   - platform: time_pattern
     minutes: "/1"
     id: periodic_check
@@ -143,10 +169,12 @@ action:
   - choose:
 
       # ===== CASE 1: Zeitpunkt „gelüftet“ speichern =====
-      - conditions: "{{ trigger.id == 'opened_long_enough' }}"
+      - conditions: >
+          {{ trigger.id in ['opened_long_enough_on','opened_long_enough_open'] }}
         sequence:
           - service: input_datetime.set_datetime
-            target: { entity_id: "{{ _dt }}" }
+            target:
+              entity_id: "{{ _dt }}"
             data:
               datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
           - stop: "Gelüftet-Zeitpunkt gespeichert."
@@ -158,18 +186,18 @@ action:
           - condition: template
             value_template: "{{ (now().minute % (_interval | int)) == 0 }}"
 
-          # 2.1: aktives Zeitfenster? (Hinweis: deckt Start < Ende ab)
+          # 2.1: aktives Zeitfenster (einfacher Fall Start < Ende)
           - condition: template
             value_template: >
               {% set nowt = now().strftime('%H:%M:%S') %}
               {{ _start <= nowt <= _end }}
 
           # 2.2: Nicht erinnern, wenn gerade ein Fenster offen ist
-          - condition: state
-            entity_id: !input window_group
-            state: "off"
+          - condition: template
+            value_template: >
+              {{ states(_grp) in ['off','closed'] }}
 
-          # 2.3: Stunden seit letzter Lüftung
+          # 2.3: Stunden seit letzter Lüftung berechnen
           - variables:
               last_str: "{{ states(_dt) }}"
               hours_since: >
@@ -214,7 +242,7 @@ action:
                         title: "{{ _title }}"
                         message: "{{ _msg }}"
 
-          # 2.7: Zusätzlich im UI anzeigen (kannst du bei Bedarf entfernen)
+          # 2.7: Zusätzlich im UI anzeigen (optional)
           - service: persistent_notification.create
             data:
               title: "{{ _title }}"
