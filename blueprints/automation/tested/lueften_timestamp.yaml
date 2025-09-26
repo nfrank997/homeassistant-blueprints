@@ -30,8 +30,6 @@ blueprint:
 
 mode: restart
 
-# Triggert, wenn die Entität X Minuten offen ist.
-# 'on' deckt binary_sensors und Gruppen ab; 'open' für seltene Sensoren mit open/closed.
 trigger:
   - platform: state
     entity_id: !input target_entity
@@ -45,32 +43,8 @@ trigger:
 condition: []
 
 action:
-  # Passt sich automatisch an, je nachdem ob dein Helper Datum+Zeit, nur Datum oder nur Zeit hat.
-  - choose:
-      - conditions: >
-          {{ state_attr(!input target_datetime,'has_date')
-             and state_attr(!input target_datetime,'has_time') }}
-        sequence:
-          - service: input_datetime.set_datetime
-            target:
-              entity_id: !input target_datetime
-            data:
-              datetime: "{{ now().astimezone().strftime('%Y-%m-%d %H:%M:%S') }}"
-      - conditions: >
-          {{ not state_attr(!input target_datetime,'has_date')
-             and state_attr(!input target_datetime,'has_time') }}
-        sequence:
-          - service: input_datetime.set_datetime
-            target:
-              entity_id: !input target_datetime
-            data:
-              time: "{{ now().astimezone().strftime('%H:%M:%S') }}"
-      - conditions: >
-          {{ state_attr(!input target_datetime,'has_date')
-             and not state_attr(!input target_datetime,'has_time') }}
-        sequence:
-          - service: input_datetime.set_datetime
-            target:
-              entity_id: !input target_datetime
-            data:
-              date: "{{ now().astimezone().strftime('%Y-%m-%d') }}"
+  - service: input_datetime.set_datetime
+    target:
+      entity_id: !input target_datetime
+    data:
+      datetime: "{{ now().astimezone().strftime('%Y-%m-%d %H:%M:%S') }}"
