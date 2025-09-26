@@ -1,0 +1,76 @@
+blueprint:
+  name: Lüften – Zeitstempel nach X Min offen (Sensor oder Gruppe)
+  description: >
+    Setzt einen Input-Datetime, wenn ein Fenster/Tür-Sensor ODER eine Gruppe
+    mindestens X Minuten ununterbrochen offen war.
+  domain: automation
+  input:
+    target_entity:
+      name: Fenster-/Türsensor ODER Gruppe
+      description: binary_sensor.* oder group.*
+      selector:
+        entity:
+          multiple: false
+          filter:
+            - domain: binary_sensor
+            - domain: group
+    target_datetime:
+      name: Ziel-Input-Datetime
+      selector:
+        entity:
+          domain: input_datetime
+    open_duration:
+      name: Dauer "offen" bis Auslösung
+      default:
+        hours: 0
+        minutes: 10
+        seconds: 0
+      selector:
+        duration: {}
+
+mode: restart
+
+# Triggert, wenn die Entität X Minuten offen ist.
+# 'on' deckt binary_sensors und Gruppen ab; 'open' für seltene Sensoren mit open/closed.
+trigger:
+  - platform: state
+    entity_id: !input target_entity
+    to: 'on'
+    for: !input open_duration
+  - platform: state
+    entity_id: !input target_entity
+    to: 'open'
+    for: !input open_duration
+
+condition: []
+
+action:
+  # Passt sich automatisch an, je nachdem ob dein Helper Datum+Zeit, nur Datum oder nur Zeit hat.
+  - choose:
+      - conditions: >
+          {{ state_attr(!input target_datetime,'has_date')
+             and state_attr(!input target_datetime,'has_time') }}
+        sequence:
+          - service: input_datetime.set_datetime
+            target:
+              entity_id: !input target_datetime
+            data:
+              datetime: "{{ now().astimezone().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - conditions: >
+          {{ not state_attr(!input target_datetime,'has_date')
+             and state_attr(!input target_datetime,'has_time') }}
+        sequence:
+          - service: input_datetime.set_datetime
+            target:
+              entity_id: !input target_datetime
+            data:
+              time: "{{ now().astimezone().strftime('%H:%M:%S') }}"
+      - conditions: >
+          {{ state_attr(!input target_datetime,'has_date')
+             and not state_attr(!input target_datetime,'has_time') }}
+        sequence:
+          - service: input_datetime.set_datetime
+            target:
+              entity_id: !input target_datetime
+            data:
+              date: "{{ now().astimezone().strftime('%Y-%m-%d') }}"
