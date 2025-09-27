@@ -1,11 +1,10 @@
 blueprint:
-  name: Lüften-Erinnerung – Fenster-Gruppe (multi Empfänger, nur wenn zuhause)
+  name: Lüften-Erinnerung – einfach (pro Empfänger)
   description: >
-    Erinnert ans Lüften, wenn in einer Fenster-Zone seit X Stunden nicht gelüftet wurde.
-    Unterstützt eine Fenster-GRUPPE (group.*) oder einen einzelnen Fensterkontakt (binary_sensor.*).
-    Speichert den Zeitpunkt der letzten ausreichenden Lüftung in einem input_datetime (mit Datum+Zeit).
-    Benachrichtigt NUR Empfänger, deren Präsenz „zuhause“ ist (pro Empfänger: Präsenz-Entity + Notify-Service).
-    Prüfintervall, aktives Zeitfenster und Stunden bis Erinnerung sind einstellbar. Optionales Debug-Logging.
+    Erinnert eine Person ans Lüften, wenn seit dem Zeitstempel in einem input_datetime
+    länger als N Stunden nicht gelüftet wurde. Benachrichtigt nur, wenn die Person zuhause ist
+    und die Fenster-Zone aktuell geschlossen ist. Der Zeitstempel wird von einer separaten
+    Automation gesetzt (z. B. „Lüften – Zeitstempel nach X Min offen“).
   domain: automation
 
   input:
@@ -24,15 +23,6 @@ blueprint:
         entity:
           domain: input_datetime
 
-    min_open_duration:
-      name: Mindestdauer „Fenster offen“, um als gelüftet zu zählen
-      default:
-        hours: 0
-        minutes: 5
-        seconds: 0
-      selector:
-        duration: {}
-
     remind_after_hours:
       name: Erinnern nach so vielen Stunden ohne Lüften
       default: 6
@@ -44,13 +34,13 @@ blueprint:
           unit_of_measurement: "h"
 
     check_every_minutes:
-      name: Prüf-/Erinnerungsintervall (Minuten)
+      name: Prüf-/Erinnerungsintervall (Minuten, ≤60)
       default: 30
       selector:
         number:
-          min: 5
-          max: 120
-          step: 5
+          min: 1
+          max: 60
+          step: 1
           unit_of_measurement: "min"
 
     active_start:
@@ -63,10 +53,8 @@ blueprint:
       default: "21:00:00"
       selector: { time: {} }
 
-    # Bis zu 5 Empfänger
-    recipient_1_presence:
-      name: Empfänger 1 – Präsenz (person/device_tracker/group/binary_sensor)
-      default: ""
+    presence_entity:
+      name: Präsenz der Zielperson (person/device_tracker/group/binary_sensor)
       selector:
         entity:
           multiple: false
@@ -75,73 +63,9 @@ blueprint:
             - domain: device_tracker
             - domain: group
             - domain: binary_sensor
-    recipient_1_notify:
-      name: Empfänger 1 – Notify-Service (z. B. notify.mobile_app_iphone)
-      default: ""
-      selector: { text: {} }
 
-    recipient_2_presence:
-      name: Empfänger 2 – Präsenz
-      default: ""
-      selector:
-        entity:
-          multiple: false
-          filter:
-            - domain: person
-            - domain: device_tracker
-            - domain: group
-            - domain: binary_sensor
-    recipient_2_notify:
-      name: Empfänger 2 – Notify-Service
-      default: ""
-      selector: { text: {} }
-
-    recipient_3_presence:
-      name: Empfänger 3 – Präsenz
-      default: ""
-      selector:
-        entity:
-          multiple: false
-          filter:
-            - domain: person
-            - domain: device_tracker
-            - domain: group
-            - domain: binary_sensor
-    recipient_3_notify:
-      name: Empfänger 3 – Notify-Service
-      default: ""
-      selector: { text: {} }
-
-    recipient_4_presence:
-      name: Empfänger 4 – Präsenz
-      default: ""
-      selector:
-        entity:
-          multiple: false
-          filter:
-            - domain: person
-            - domain: device_tracker
-            - domain: group
-            - domain: binary_sensor
-    recipient_4_notify:
-      name: Empfänger 4 – Notify-Service
-      default: ""
-      selector: { text: {} }
-
-    recipient_5_presence:
-      name: Empfänger 5 – Präsenz
-      default: ""
-      selector:
-        entity:
-          multiple: false
-          filter:
-            - domain: person
-            - domain: device_tracker
-            - domain: group
-            - domain: binary_sensor
-    recipient_5_notify:
-      name: Empfänger 5 – Notify-Service
-      default: ""
+    notify_service:
+      name: Notify-Service (z. B. notify.mobile_app_iphone_von_niklas)
       selector: { text: {} }
 
     debug_enable:
@@ -159,152 +83,87 @@ variables:
   _interval: !input check_every_minutes
   _start: !input active_start
   _end:   !input active_end
-  _dbg:   !input debug_enable
-
-  # Dauer griffbereit + Minuten für Nachricht berechnen
-  _min_open: !input min_open_duration
-  _min_open_minutes_calc: >
-    {{ (_min_open.hours | default(0)) * 60 + (_min_open.minutes | default(0)) }}
-
-  # Empfänger-Inputs EINZELN (hier KEIN Template verwenden)
-  _r1p: !input recipient_1_presence
-  _r1s: !input recipient_1_notify
-  _r2p: !input recipient_2_presence
-  _r2s: !input recipient_2_notify
-  _r3p: !input recipient_3_presence
-  _r3s: !input recipient_3_notify
-  _r4p: !input recipient_4_presence
-  _r4s: !input recipient_4_notify
-  _r5p: !input recipient_5_presence
-  _r5s: !input recipient_5_notify
-
-  # Empfängerliste als JSON (hier ist Template erlaubt, aber OHNE !input)
-  _recipients: >
-    {% set lst = [] %}
-    {% for p,s in [(_r1p,_r1s),(_r2p,_r2s),(_r3p,_r3s),(_r4p,_r4s),(_r5p,_r5s)] %}
-      {% if (p|string)|length > 0 and (s|string)|length > 0 %}
-        {% set _ = lst.append({'presence': p, 'service': s}) %}
-      {% endif %}
-    {% endfor %}
-    {{ lst | tojson }}
+  _presence: !input presence_entity
+  _notify: !input notify_service
+  _dbg: !input debug_enable
 
 trigger:
-  # „genug gelüftet“ (egal ob on/off oder open/closed)
-  - platform: state
-    entity_id: !input window_entity
-    to: "on"
-    for: !input min_open_duration
-    id: opened_long_enough_on
-
-  - platform: state
-    entity_id: !input window_entity
-    to: "open"
-    for: !input min_open_duration
-    id: opened_long_enough_open
-
-  # Minutentakt – später per Modulo auf _interval gefiltert
+  # Einmal pro Minute prüfen; wir filtern später auf das eingestellte Intervall
   - platform: time_pattern
     minutes: "/1"
-    id: periodic_check
+
+  # Optional: Direkt nach Aktualisierung des Zeitstempels eine Prüfung erlauben
+  - platform: state
+    entity_id: !input last_ventilated
 
 condition: []
 
 action:
-  - choose:
+  # nur jede _interval-te Minute laufen lassen
+  - condition: template
+    value_template: "{{ (now().minute % (_interval | int)) == 0 }}"
 
-      # ===== CASE 1: Zeitpunkt „gelüftet“ speichern =====
-      - conditions: "{{ trigger.id in ['opened_long_enough_on','opened_long_enough_open'] }}"
-        sequence:
-          - service: input_datetime.set_datetime
-            target:
-              entity_id: !input last_ventilated
-            data:
-              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
-          - if:
-              - condition: template
-                value_template: "{{ _dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "Lüften-Blueprint"
-                  message: "Zeitstempel gesetzt ({{ _ent }})"
-          - stop: "Gelüftet-Zeitpunkt gespeichert."
+  # aktives Zeitfenster (auch über Mitternacht)
+  - condition: template
+    value_template: >
+      {% set nowt = now().strftime('%H:%M:%S') %}
+      {% if _start <= _end %}
+        {{ _start <= nowt <= _end }}
+      {% else %}
+        {{ nowt >= _start or nowt <= _end }}
+      {% endif %}
 
-      # ===== CASE 2: Erinnerung prüfen/senden =====
-      - conditions: "{{ trigger.id == 'periodic_check' }}"
-        sequence:
-          # 2.0: nur jede _interval-te Minute
-          - condition: template
-            value_template: "{{ (now().minute % (_interval | int)) == 0 }}"
+  # Fenster-Zone muss aktuell geschlossen sein
+  - variables:
+      _st: "{{ states(_ent) | lower }}"
+      _closed_now: "{{ _st in ['off','closed'] }}"
+  - condition: template
+    value_template: "{{ _closed_now }}"
 
-          # 2.1: aktives Zeitfenster (auch über Mitternacht)
-          - condition: template
-            value_template: >
-              {% set nowt = now().strftime('%H:%M:%S') %}
-              {% if _start <= _end %}
-                {{ _start <= nowt <= _end }}
-              {% else %}
-                {{ nowt >= _start or nowt <= _end }}
-              {% endif %}
+  # Stunden seit letzter Lüftung berechnen
+  - variables:
+      _last_str: "{{ states(_dt) }}"
+      _hours_since: >
+        {% if _last_str in ['unknown','unavailable','none',''] %}
+          {{ 999.0 }}
+        {% else %}
+          {{ ((now() - as_datetime(_last_str)).total_seconds() / 3600) | float }}
+        {% endif %}
 
-          # 2.2: Nicht erinnern, wenn Fenster JETZT offen ist (on/open)
-          - variables:
-              _st: "{{ states(_ent) | lower }}"
-              _closed_now: "{{ _st in ['off','closed','unavailable','unknown','none',''] }}"
-          - condition: template
-            value_template: "{{ _closed_now }}"
+  # Mindestzeit ohne Lüften überschritten?
+  - condition: template
+    value_template: "{{ (_hours_since | float(999)) >= (_after_h | float) }}"
 
-          # 2.3: Stunden seit letzter Lüftung
-          - variables:
-              last_str: "{{ states(_dt) }}"
-              hours_since: >
-                {% if last_str in ['unknown','unavailable','none',''] %}
-                  {{ 999.0 }}
-                {% else %}
-                  {{ ((now() - as_datetime(last_str)).total_seconds() / 3600) | float }}
-                {% endif %}
+  # Nur benachrichtigen, wenn die Zielperson zuhause ist
+  - variables:
+      _p_state: "{{ states(_presence) | lower }}"
+      _p_domain: "{{ _presence.split('.')[0] if ('.' in _presence) else '' }}"
+      _is_home: >
+        {% if _p_domain in ['person','device_tracker','group'] %}
+          {{ _p_state in ['home','on'] }}
+        {% elif _p_domain == 'binary_sensor' %}
+          {{ _p_state == 'on' }}
+        {% else %}
+          {{ _p_state in ['home','on'] }}
+        {% endif %}
+  - condition: template
+    value_template: "{{ _is_home }}"
 
-          # 2.4: Mindestzeit überschritten?
-          - condition: template
-            value_template: "{{ (hours_since | float(999)) >= (_after_h | float) }}"
+  # Nachricht senden
+  - variables:
+      _title: "Bitte lüften – {{ state_attr(_ent, 'friendly_name') or 'Fensterzone' }}"
+      _msg: "Seit {{ (_hours_since | float) | round(1) }} h nicht gelüftet. Bitte jetzt kurz lüften."
+  - service: "{{ _notify }}"
+    data:
+      title: "{{ _title }}"
+      message: "{{ _msg }}"
 
-          # 2.5: Titel/Message
-          - variables:
-              _title: "Bitte lüften – {{ state_attr(_ent, 'friendly_name') or 'Fensterzone' }}"
-              _msg: "Seit {{ (hours_since | float) | round(1) }} h nicht gelüftet. Bitte ein Fenster mindestens {{ _min_open_minutes_calc }} Minuten öffnen."
-
-          # 2.6: an alle 'zuhause'-Empfänger
-          - repeat:
-              for_each: "{{ _recipients | from_json }}"
-              sequence:
-                - variables:
-                    _entity: "{{ repeat.item.presence }}"
-                    _svc:    "{{ repeat.item.service }}"
-                    _state:  "{{ states(_entity) if _entity in states else 'unknown' }}"
-                    _domain: "{{ _entity.split('.')[0] if ('.' in _entity) else '' }}"
-                    _ishome: >
-                      {% if _domain in ['person','device_tracker','group'] %}
-                        {{ _state in ['home','on'] }}
-                      {% elif _domain == 'binary_sensor' %}
-                        {{ _state == 'on' }}
-                      {% else %}
-                        {{ _state in ['home','on'] }}
-                      {% endif %}
-                - if:
-                    - condition: template
-                      value_template: "{{ _ishome }}"
-                  then:
-                    - service: "{{ _svc }}"
-                      data:
-                        title: "{{ _title }}"
-                        message: "{{ _msg }}"
-
-          # 2.7: optionales Debug
-          - if:
-              - condition: template
-                value_template: "{{ _dbg }}"
-            then:
-              - service: logbook.log
-                data:
-                  name: "Lüften-Blueprint"
-                  message: "Erinnerung geprüft ({{ _ent }})"
+  # Optionales Logging
+  - if:
+      - condition: template
+        value_template: "{{ _dbg }}"
+    then:
+      - service: logbook.log
+        data:
+          name: "Lüften-Reminder"
+          message: "Erinnerung gesendet an {{ _presence }} ({{ _notify }})"
