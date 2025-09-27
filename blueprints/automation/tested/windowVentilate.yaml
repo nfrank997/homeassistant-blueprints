@@ -5,7 +5,7 @@ blueprint:
     Unterstützt eine Fenster-GRUPPE (group.*) oder einen einzelnen Fensterkontakt (binary_sensor.*).
     Speichert den Zeitpunkt der letzten ausreichenden Lüftung in einem input_datetime (mit Datum+Zeit).
     Benachrichtigt NUR Empfänger, deren Präsenz „zuhause“ ist (pro Empfänger: Präsenz-Entity + Notify-Service).
-    Prüfintervall und Stunden bis Erinnerung sind einstellbar. Optionales Debug-Logging.
+    Prüfintervall, aktives Zeitfenster und Stunden bis Erinnerung sind einstellbar. Optionales Debug-Logging.
   domain: automation
 
   input:
@@ -161,17 +161,27 @@ variables:
   _end:   !input active_end
   _dbg:   !input debug_enable
 
-  # Empfänger als echtes JSON bauen → später from_json
+  # Dauer griffbereit + Minuten für Nachricht berechnen
+  _min_open: !input min_open_duration
+  _min_open_minutes_calc: >
+    {{ (_min_open.hours | default(0)) * 60 + (_min_open.minutes | default(0)) }}
+
+  # Empfänger-Inputs EINZELN (hier KEIN Template verwenden)
+  _r1p: !input recipient_1_presence
+  _r1s: !input recipient_1_notify
+  _r2p: !input recipient_2_presence
+  _r2s: !input recipient_2_notify
+  _r3p: !input recipient_3_presence
+  _r3s: !input recipient_3_notify
+  _r4p: !input recipient_4_presence
+  _r4s: !input recipient_4_notify
+  _r5p: !input recipient_5_presence
+  _r5s: !input recipient_5_notify
+
+  # Empfängerliste als JSON (hier ist Template erlaubt, aber OHNE !input)
   _recipients: >
     {% set lst = [] %}
-    {% set pairs = [
-      (!input recipient_1_presence, !input recipient_1_notify),
-      (!input recipient_2_presence, !input recipient_2_notify),
-      (!input recipient_3_presence, !input recipient_3_notify),
-      (!input recipient_4_presence, !input recipient_4_notify),
-      (!input recipient_5_presence, !input recipient_5_notify)
-    ] %}
-    {% for p,s in pairs %}
+    {% for p,s in [(_r1p,_r1s),(_r2p,_r2s),(_r3p,_r3s),(_r4p,_r4s),(_r5p,_r5s)] %}
       {% if (p|string)|length > 0 and (s|string)|length > 0 %}
         {% set _ = lst.append({'presence': p, 'service': s}) %}
       {% endif %}
@@ -261,7 +271,7 @@ action:
           # 2.5: Titel/Message
           - variables:
               _title: "Bitte lüften – {{ state_attr(_ent, 'friendly_name') or 'Fensterzone' }}"
-              _msg: "Seit {{ (hours_since | float) | round(1) }} h nicht gelüftet. Bitte ein Fenster mindestens {{ (state_attr(this.entity_id, 'blueprint_inputs').min_open_duration.minutes | default(5)) }} Minuten öffnen."
+              _msg: "Seit {{ (hours_since | float) | round(1) }} h nicht gelüftet. Bitte ein Fenster mindestens {{ _min_open_minutes_calc }} Minuten öffnen."
 
           # 2.6: an alle 'zuhause'-Empfänger
           - repeat:
